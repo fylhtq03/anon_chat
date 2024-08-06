@@ -1,0 +1,11 @@
+body {
+      background-color: #343a40; /* Темный фон */
+      color: #ffffff; /* Цвет текста */
+    }
+    .light-theme {
+      background-color: #ffffff; /* Светлый фон */
+      color: #000000; /* Тёмный текст */
+    }
+    .light-theme #chatbox {
+      background-color: #f8f9fa; /* Светлый фон для чата */
+    }
