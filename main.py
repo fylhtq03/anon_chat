@@ -5,7 +5,6 @@ from Crypto.Util.Padding import pad
 import base64
 import binascii
 from markupsafe import escape
-import threading
 import os
 import random
 import string
@@ -71,11 +70,5 @@ def get_messages():
     return jsonify(encrypt_messages)
 
 
-def server():
-    if __name__ == '__main__':
-        app.run(host="0.0.0.0", port=80, debug=False)
-
-
-server = threading.Thread(target=server)
-server.start()
-server.join()
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=80, debug=False)
