@@ -4,42 +4,54 @@ from Crypto.Cipher import PKCS1_v1_5, AES
 from Crypto.Util.Padding import pad
 import base64
 import binascii
-from markupsafe import escape
 import os
 import random
 import string
+from markupsafe import escape
+
+# Константы для шифрования
+KEY_LENGTH = 16
+IV_LENGTH = 16
+
 
 def generate_random_string(length):
-    letters_and_digits = string.ascii_letters + string.digits
-    return ''.join(random.choice(letters_and_digits) for i in range(length))
-
-messages = []
-encrypt_messages = []
-
-key = RSA.generate(2048)
-private_key = key.export_key()
-public_key = key.publickey().export_key()
-rsakey = RSA.importKey(private_key)
-decryptor = PKCS1_v1_5.new(rsakey)
-
-key = generate_random_string(16).encode()  # 16-байтный ключ
-iv = generate_random_string(16).encode()    # 16-байтный вектор инициализации
-print(f"key: {key}")
-print(f"iv: {iv}")
-cipher = AES.new(key, AES.MODE_CBC, iv)
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
 
 
-def encrypt_message(text):
+def create_keys():
+    key = RSA.generate(2048)
+    return key.export_key(), key.publickey().export_key(), PKCS1_v1_5.new(key)
+
+
+def encrypt_message(text, key, iv):
     cipher = AES.new(key, AES.MODE_CBC, iv)
     padded_text = pad(text.encode(), AES.block_size)
     encrypted = cipher.encrypt(padded_text)
     return base64.b64encode(encrypted).decode('utf-8')
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(2048)).decode()
-app.config['WTF_CSRF_ENABLED'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SECURE'] = True
+
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(2048)).decode()
+    app.config['WTF_CSRF_ENABLED'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True
+
+    return app
+
+
+app = create_app()
+
+# Генерация ключей
+private_key, public_key, decryptor = create_keys()
+key = generate_random_string(KEY_LENGTH).encode()
+iv = generate_random_string(IV_LENGTH).encode()
+print(f"key: {key}")
+print(f"iv: {iv}")
+
+messages = []
+encrypt_messages = []
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -49,20 +61,25 @@ def index():
 
 @app.route('/post_message', methods=['POST'])
 def post_message():
-    message = request.form['message']
-    name = request.form['name']
-    message = decryptor.decrypt(base64.b64decode(message),
-                                "Error decrypting").decode("utf-8")
-    name = decryptor.decrypt(base64.b64decode(name),
-                            "Error decrypting").decode("utf-8")
-    name = escape(name)
-    message = escape(message)
-    messages.append({'name': name, 'message': message})
-    message = encrypt_message(message)
-    name = encrypt_message(name)
-    encrypt_messages.append({'name': name, 'message': message})
-    print(messages)
-    return jsonify({'status': 'OK'})
+    try:
+        encoded_message = request.form['message']
+        encoded_name = request.form['name']
+        message = decryptor.decrypt(base64.b64decode(encoded_message), "Error decrypting").decode("utf-8")
+        name = decryptor.decrypt(base64.b64decode(encoded_name), "Error decrypting").decode("utf-8")
+
+        name = escape(name)
+        message = escape(message)
+
+        messages.append({'name': name, 'message': message})
+
+        encrypted_name = encrypt_message(name, key, iv)
+        encrypted_message = encrypt_message(message, key, iv)
+
+        encrypt_messages.append({'name': encrypted_name, 'message': encrypted_message})
+        print(messages)
+        return jsonify({'status': 'OK'})
+    except Exception as e:
+        return jsonify({'status': 'ERROR', 'message': str(e)})
 
 
 @app.route('/get_messages')
